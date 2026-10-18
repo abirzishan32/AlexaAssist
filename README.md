@@ -17,7 +17,9 @@ A menu bar controller for your Echo Dot: timers, alarms and reminders from your 
   Times that have already passed today can't be chosen.
 - **Reminders.** Type what to be reminded about and pick a time; the text and time go to Alexa together.
 - **Upcoming.** Every timer, alarm and reminder on the account, with a cancel button.
-- **Stop ringing.** Silence an alarm or timer that is going off on the Echo.
+- **Ask Alexa anything.** Type any request ("what's the weather", "turn off the lights") and the Echo answers out loud.
+- **Volume.** Press the speaker button for a slider that sets the Echo's volume.
+- **Stop ringing.** Right-click the menu bar icon and choose **Stop Ringing** to silence an alarm or timer going off on the Echo.
 - **Real confirmation.** After each action the app re-reads Alexa's list and only reports success once the new item is there.
 - Everything is created on Alexa itself, so it also shows up in the Alexa phone app.
 
@@ -63,6 +65,8 @@ Actions:
 | Upcoming list | `GET /api/notifications` (every minute while the panel is open, every 5 minutes otherwise) |
 | Cancel | `DELETE /api/notifications/{id}` |
 | Stop ringing | `POST /api/behaviors/preview` running `Alexa.DeviceControls.Stop` |
+| Ask Alexa | `POST /api/behaviors/preview` running `Alexa.TextCommand` with your text |
+| Volume | `Alexa.DeviceControls.Volume`; current level from `GET /api/devices/deviceType/dsn/audio/v1/allDeviceVolumes` |
 
 ## Privacy and security
 

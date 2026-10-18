@@ -42,7 +42,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.animates = true
         popover.appearance = NSAppearance(named: .darkAqua)
         popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: PanelView().environment(model))
+        let panel = NSHostingController(rootView: PanelView().environment(model))
+        panel.sizingOptions = .preferredContentSize  // popover shrinks and grows with the selected tab
+        popover.contentViewController = panel
 
         // One cheap tick a second keeps the menu bar countdown current.
         ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in

@@ -87,3 +87,4 @@ private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
     #expect(r.authorizationCode(from: URL(string: "https://www.amazon.com/ap/maplanding?openid.oa2.authorization_code=abc")!) == "abc")
     #expect(r.authorizationCode(from: URL(string: "https://www.amazon.com/ap/signin")!) == nil)
 }
+

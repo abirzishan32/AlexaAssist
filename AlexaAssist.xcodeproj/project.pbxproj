@@ -301,10 +301,10 @@
 				AA0000000000000000000211 /* Debug */,
 				AA0000000000000000000212 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = AA0000000000000000000000 /* Project object */;
 }

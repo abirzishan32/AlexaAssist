@@ -3,14 +3,15 @@ import SwiftUI
 
 struct PanelView: View {
     @Environment(AppModel.self) private var model
-    @State private var tab = AlertKind.timer
+    @State private var tab = PanelTab.timer
 
     var body: some View {
         VStack(spacing: 0) {
             Hero()
             if model.isSignedIn {
                 VStack(spacing: 14) {
-                    TabSwitcher(tab: $tab)
+                    AskBar()
+                    CapsulePicker(options: PanelTab.allCases.map { ($0, $0.rawValue, $0.icon) }, selection: $tab)
                     switch tab {
                     case .timer: TimerControls()
                     case .alarm: ScheduleControls(kind: .alarm)
@@ -54,29 +55,30 @@ private struct Hero: View {
             let t = context.date.timeIntervalSinceReferenceDate
             let sending = model.phase == .sending
             let pulse = sending ? 0.75 + 0.25 * sin(t * 4) : 1
-            ZStack(alignment: .top) {
-                // Glow from the top of the panel.
-                RadialGradient(colors: [ringColors[0].opacity(0.55 * strength * pulse),
-                                        ringColors[1].opacity(0.25 * strength * pulse), .clear],
-                               center: .top, startRadius: 0, endRadius: 260)
-                Ellipse()
-                    .fill(ringColors[0].opacity(0.45 * strength * pulse))
-                    .frame(width: 280, height: 110)
-                    .blur(radius: 55)
-                    .offset(y: -70)
-
-                VStack(spacing: 6) {
-                    TopBar()
-                    EchoDotView(ringColors: ringColors, ringStrength: strength * pulse,
-                                spin: .degrees(sending ? t * 220 : 0)) {
-                        LEDDisplay()
-                    }
-                    .padding(.top, 2)
-                    StatusLine()
+            VStack(spacing: 6) {
+                TopBar()
+                EchoDotView(ringColors: ringColors, ringStrength: strength * pulse,
+                            spin: .degrees(sending ? t * 220 : 0)) {
+                    LEDDisplay()
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-                .padding(.bottom, 12)
+                .padding(.top, 2)
+                StatusLine()
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 12)
+            // Glow from the top of the panel. A background, so it never stretches the layout.
+            .background(alignment: .top) {
+                ZStack(alignment: .top) {
+                    RadialGradient(colors: [ringColors[0].opacity(0.55 * strength * pulse),
+                                            ringColors[1].opacity(0.25 * strength * pulse), .clear],
+                                   center: .top, startRadius: 0, endRadius: 260)
+                    Ellipse()
+                        .fill(ringColors[0].opacity(0.45 * strength * pulse))
+                        .frame(width: 280, height: 110)
+                        .blur(radius: 55)
+                        .offset(y: -70)
+                }
             }
             .animation(.easeInOut(duration: 0.6), value: model.phase)
         }
@@ -137,19 +139,7 @@ private struct TopBar: View {
             }
             Spacer()
             if model.isSignedIn {
-                Button {
-                    Task { await model.stopRinging() }
-                } label: {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .frame(width: 28, height: 28)
-                        .background(Circle().fill(.black.opacity(0.35)))
-                        .overlay(Circle().strokeBorder(Theme.stroke))
-                }
-                .buttonStyle(PressStyle())
-                .disabled(model.selectedDevice == nil)
-                .help("Stop a ringing alarm or timer on \(model.selectedDevice?.name ?? "your Echo")")
-                .accessibilityLabel("Stop ringing")
+                VolumeButton()
             }
             Menu {
                 Button("Settings…") { model.openSettings() }
@@ -157,11 +147,7 @@ private struct TopBar: View {
                 Divider()
                 Button("Quit AlexaAssist") { NSApp.terminate(nil) }
             } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 12, weight: .bold))
-                    .frame(width: 28, height: 28)
-                    .background(Circle().fill(.black.opacity(0.35)))
-                    .overlay(Circle().strokeBorder(Theme.stroke))
+                CircleIcon(name: "ellipsis")
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
@@ -213,12 +199,15 @@ private struct StatusLine: View {
 
 // MARK: - Tabs
 
-private struct TabSwitcher: View {
-    @Binding var tab: AlertKind
+enum PanelTab: String, CaseIterable {
+    case timer = "Timer", alarm = "Alarm", reminder = "Reminder"
 
-    var body: some View {
-        CapsulePicker(options: [AlertKind.timer, .alarm, .reminder].map { ($0, $0.rawValue.capitalized, $0.icon) },
-                      selection: $tab)
+    var icon: String {
+        switch self {
+        case .timer: AlertKind.timer.icon
+        case .alarm: AlertKind.alarm.icon
+        case .reminder: AlertKind.reminder.icon
+        }
     }
 }
 
@@ -237,6 +226,98 @@ extension AlertKind {
         case .alarm: Theme.violet
         case .reminder: Theme.amber
         }
+    }
+}
+
+// MARK: - Top bar buttons
+
+/// Round dark button face used across the top bar.
+private struct CircleIcon: View {
+    let name: String
+
+    var body: some View {
+        Image(systemName: name)
+            .font(.system(size: 11, weight: .bold))
+            .frame(width: 28, height: 28)
+            .background(Circle().fill(.black.opacity(0.35)))
+            .overlay(Circle().strokeBorder(Theme.stroke))
+    }
+}
+
+/// Speaker button; pressing it shows the volume slider for the selected Echo.
+private struct VolumeButton: View {
+    @Environment(AppModel.self) private var model
+    @State private var shown = false
+    @State private var level = 50.0
+
+    var body: some View {
+        Button { shown.toggle() } label: {
+            CircleIcon(name: "speaker.wave.2.fill")
+        }
+        .buttonStyle(PressStyle())
+        .help("Volume")
+        .accessibilityLabel("Volume")
+        .popover(isPresented: $shown, arrowEdge: .bottom) {
+            HStack(spacing: 10) {
+                Image(systemName: "speaker.fill").foregroundStyle(.secondary)
+                Slider(value: $level, in: 0...100, step: 1)
+                    .frame(width: 180)
+                    .accessibilityLabel("Volume")
+                Image(systemName: "speaker.wave.3.fill").foregroundStyle(.secondary)
+                Text("\(Int(level))").monospacedDigit().frame(width: 28, alignment: .trailing)
+            }
+            .padding(14)
+            .task {
+                await model.loadVolume()
+                if let volume = model.volume { level = Double(volume) }
+            }
+            // Debounced: one request once the slider settles, whether dragged, clicked or keyed.
+            .task(id: Int(level)) {
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled, let current = model.volume, current != Int(level) else { return }
+                await model.setVolume(Int(level))
+            }
+        }
+    }
+}
+
+// MARK: - Ask Alexa
+
+private struct AskBar: View {
+    @Environment(AppModel.self) private var model
+    @State private var text = ""
+
+    private var trimmed: String { text.trimmingCharacters(in: .whitespaces) }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "waveform").foregroundStyle(Theme.cyan)
+            TextField("Ask Alexa anything…", text: $text)
+                .textFieldStyle(.plain)
+                .onSubmit(send)
+            Button(action: send) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(trimmed.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(Theme.cyan))
+            }
+            .buttonStyle(PressStyle())
+            .disabled(trimmed.isEmpty || model.phase == .sending)
+            .help("Send to \(model.selectedDevice?.name ?? "your Echo")")
+            .accessibilityLabel("Send to Alexa")
+        }
+        .font(.system(size: 13))
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(Theme.card))
+        .overlay(Capsule().strokeBorder(Theme.stroke))
+    }
+
+    private func send() {
+        guard !trimmed.isEmpty, model.phase != .sending else { return }
+        let command = trimmed
+        text = ""
+        Task { await model.ask(command) }
     }
 }
 

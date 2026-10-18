@@ -67,13 +67,13 @@ struct CapsulePicker<Value: Hashable>: View {
                 Button {
                     withAnimation(.spring(duration: 0.3)) { selection = option.value }
                 } label: {
-                    Group {
-                        if let icon = option.icon { Label(option.title, systemImage: icon) } else { Text(option.title) }
+                    VStack(spacing: 2) {
+                        if let icon = option.icon { Image(systemName: icon).font(.system(size: 13, weight: .semibold)) }
+                        Text(option.title).font(.system(size: option.icon == nil ? 12 : 10, weight: .semibold)).lineLimit(1)
                     }
-                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(selected ? .white : .secondary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 7)
+                    .padding(.vertical, option.icon == nil ? 7 : 6)
                     .background {
                         if selected { Capsule().fill(Theme.ring).matchedGeometryEffect(id: "pick", in: ns) }
                     }

@@ -79,6 +79,18 @@ actor CloudBackend {
         ])
     }
 
+    // MARK: Volume (aioamazondevices implementation/media.py and sequence.py)
+
+    func setVolume(_ volume: Int, on device: EchoDevice) async throws {
+        try await runOperation("Alexa.DeviceControls.Volume", on: device, extra: ["value": String(min(100, max(0, volume)))])
+    }
+
+    func volume(of device: EchoDevice) async throws -> Int? {
+        let json = try JSONSerialization.jsonObject(with: await call("GET", "/api/devices/deviceType/dsn/audio/v1/allDeviceVolumes"))
+        let volumes = dig(json, "volumes") as? [[String: Any]] ?? []
+        return volumes.first { $0["dsn"] as? String == device.id }?["speakerVolume"] as? Int
+    }
+
     /// One behaviors/preview call with a single operation node (aioamazondevices' `_build_operation_node`).
     private func runOperation(_ type: String, on device: EchoDevice, extra: [String: Any]) async throws {
         guard device.isOnline else { throw AlexaError.deviceOffline(device.name) }

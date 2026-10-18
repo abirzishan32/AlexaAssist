@@ -24,6 +24,7 @@ final class AppModel {
         didSet { if isPanelOpen && !oldValue && isSignedIn { poll() } }
     }
     private(set) var isSignedIn = false
+    private(set) var volume: Int?
     private(set) var devices: [EchoDevice] = []
     private(set) var alerts: [Alert] = []
     var banner: Banner?
@@ -59,6 +60,7 @@ final class AppModel {
         devices = []
         alerts = []
         timerDurations = [:]
+        volume = nil
         lastAction = nil
         phase = .idle
         banner = nil
@@ -171,15 +173,42 @@ final class AppModel {
     }
 
     
-    func stopRinging() async {
-        guard let backend, let device = selectedDevice, phase != .sending else { return }
+    /// Fire-and-report for actions with nothing to verify in Alexa's lists.
+    @discardableResult
+    private func perform(_ done: String, _ operation: (CloudBackend, EchoDevice) async throws -> Void) async -> Bool {
+        guard let backend, let device = selectedDevice, phase != .sending else { return false }
+        phase = .sending
         do {
-            try await backend.stop(device)
-            finish(.success, Banner(text: "Stopped \(device.name)", isError: false))
+            try await operation(backend, device)
+            finish(.success, Banner(text: done, isError: false))
+            return true
         } catch {
             show(error)
             finish(.failure, banner)
+            return false
         }
+    }
+
+    /// Silences a ringing alarm or timer on the selected Echo.
+    func stopRinging() async {
+        await perform("Stopped \(selectedDevice?.name ?? "Echo")") { try await $0.stop($1) }
+    }
+
+    /// Sends any sentence, as if spoken to the Echo. Alexa answers out loud on the device.
+    func ask(_ text: String) async {
+        await perform("Sent to \(selectedDevice?.name ?? "Echo")") { try await $0.send(command: text, to: $1) }
+    }
+
+    // MARK: Volume
+
+    func loadVolume() async {
+        guard let backend, let device = selectedDevice else { return }
+        do { volume = try await backend.volume(of: device) } catch { show(error) }
+    }
+
+    func setVolume(_ value: Int) async {
+        volume = value
+        await perform("Volume \(value)") { try await $0.setVolume(value, on: $1) }
     }
 
     func cancel(_ alert: Alert) async {
