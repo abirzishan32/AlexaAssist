@@ -179,7 +179,9 @@ actor CloudBackend {
         req.setValue(base.absoluteString, forHTTPHeaderField: "Origin")
         req.setValue(base.absoluteString + "/spa/index.html", forHTTPHeaderField: "Referer")
         let (data, status) = try await load(req)
-        let endpoint = "\(method) \(path.split(separator: "?")[0])"
+        // Notification IDs embed the Echo's serial number: keep them out of logs and error text.
+        let endpoint = "\(method) " + path.split(separator: "?")[0]
+            .replacingOccurrences(of: #"/notifications/.+"#, with: "/notifications/{id}", options: .regularExpression)
         log.info("\(endpoint, privacy: .public) → \(status)")
         switch status {
         case 200..<300:

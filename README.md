@@ -46,17 +46,55 @@ A menu bar controller for your Echo Dot: timers, alarms and reminders from your 
 
 To launch it at login, right-click the icon, choose **Settings…**, and turn on **Launch at login**.
 
-## How it works
+## Built with
 
-Sign-in follows the flow of the Alexa iOS app:
+No third-party dependencies: everything is Apple's own frameworks.
 
-1. Amazon's OAuth page (with PKCE) runs in a private, non-persistent web view.
-2. AlexaAssist registers itself as an app device. It shows up as "…'s AlexaAssist" under *Your Devices* on Amazon;
-   remove it there after signing out if you like.
-3. Only the resulting **refresh token** is kept, in your login Keychain. Session cookies are minted from it at launch
-   and live in memory only.
+| Technology | Used for |
+|---|---|
+| **Swift 6** (strict concurrency) | The whole app |
+| **SwiftUI** + **Observation** (`@Observable`) | The panel, timer dial, time wheel, day strip, settings and sign-in screens |
+| **AppKit** (`NSStatusItem`, `NSPopover`, `NSMenu`, `NSHostingController`) | The menu bar icon and countdown, the popover panel, the right-click menu, windows |
+| **`LSUIElement`** (agent app) | No Dock icon and no app-switcher entry |
+| **Swift Concurrency** (`async`/`await`, `actor`, `Task`) | All network calls go through one `actor`, so session refreshes never race |
+| **WebKit** (`WKWebView`, non-persistent `WKWebsiteDataStore`) | Showing Amazon's own sign-in page, separate from Safari |
+| **CryptoKit** (SHA-256) | The PKCE code challenge for Amazon sign-in |
+| **Security** (Keychain Services) | Storing the Amazon refresh token |
+| **Foundation** (`URLSession`, `JSONSerialization`, `Codable`) | Talking to Amazon with an ephemeral session and hand-managed cookies |
+| **OSLog** (`Logger`) | Logs in Console.app, with no tokens or personal data |
+| **ServiceManagement** (`SMAppService`) | Launch at login |
+| **Swift Testing** | Unit tests for command wording, Amazon response parsing and sign-in URLs |
+| **Xcode 16** | Project, build and tests |
 
-Actions:
+## Amazon sign-in
+
+AlexaAssist signs in the same way the Alexa iOS app does, following the open-source libraries credited below.
+Your password and one-time code are only ever typed into Amazon's own page.
+
+1. **New device identity.** Each sign-in creates a random device serial, a random PKCE verifier and its SHA-256
+   challenge. The OAuth client ID is the hex of `<serial>#A2IVLV5VM2W81`, the Alexa iOS app's device type.
+2. **Amazon's sign-in page.** `https://www.amazon.com/ap/signin` (OpenID 2.0 with the OAuth 2 extension,
+   scope `device_auth_access`) opens in a private web view. A few cookies the Alexa app also sets (`frc`, `map-md`,
+   `amzn-app-id`) are pre-set so Amazon shows fewer captchas.
+3. **Authorization code.** When sign-in (including the one-time code) succeeds, Amazon redirects to
+   `/ap/maplanding?openid.oa2.authorization_code=…`. The web view stops there and the app reads the code.
+4. **Device registration.** `POST https://api.amazon.com/auth/register` exchanges the code and PKCE verifier for a
+   **refresh token**. The app now appears as "…'s AlexaAssist" under *Your Devices* on Amazon.
+5. **Your Amazon site.** `GET https://alexa.amazon.com/api/welcome` returns the Alexa host for your account
+   (for example `alexa.amazon.in`); Far East accounts use amazon.co.jp. Then `GET /api/users/me` returns your
+   customer ID, which Alexa commands need.
+6. **Saved.** The refresh token, Amazon site and customer ID are saved as one item in your login Keychain.
+
+On every launch:
+
+- `POST https://api.amazon.com/auth/token` (`requested_token_type=auth_cookies`) turns the refresh token into
+  session cookies for your Amazon site. They live in memory only.
+- The `csrf` cookie Alexa's web API requires is fetched from the first of a few Alexa pages that sets it, and sent
+  back as a header on each request.
+- If Amazon answers 401 or 403, the cookies are refreshed once. If that fails too, the app signs out and asks you to
+  sign in again (the menu bar icon shows ⚠︎).
+
+## Alexa actions
 
 | Action | Request |
 |---|---|
