@@ -1,4 +1,3 @@
-import AlexaKit
 import AppKit
 import SwiftUI
 
@@ -392,7 +391,7 @@ private struct UpcomingList: View {
 
 private struct AlertCard: View {
     @Environment(AppModel.self) private var model
-    let alert: AlexaKit.Alert
+    let alert: Alert
 
     var body: some View {
         HStack(spacing: 10) {

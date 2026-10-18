@@ -1,4 +1,3 @@
-import AlexaKit
 import AppKit
 import SwiftUI
 
@@ -17,7 +16,7 @@ struct AlexaAssistApp: App {
 /// starves the main thread, and MenuBarExtra has no right-click menu.
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
-    let model = AppModel()
+    private(set) lazy var model = AppModel()
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
     private var signInWindow: NSWindow?
@@ -25,6 +24,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var ticker: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Hosting unit tests: no menu bar UI and no Keychain read.
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         model.openSignIn = { [weak self] in self?.showSignIn() }
         model.openSettings = { [weak self] in self?.showSettings() }
 

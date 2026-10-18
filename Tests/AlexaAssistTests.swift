@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import AlexaKit
+@testable import AlexaAssist
 
 private var utc: Calendar {
     var c = Calendar(identifier: .gregorian)

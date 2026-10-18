@@ -27,12 +27,11 @@ so the Echo's language must be English.
 You sign in on Amazon's own page inside the app; AlexaAssist registers itself as an Alexa app device
 (it appears as "…'s AlexaAssist" under *Your Devices* on Amazon; remove it there after signing out if you like)
 and keeps only the refresh token, in your Keychain. Actions are sent as text commands ("set a timer for 10 minutes").
-Endpoint details: [Packages/AlexaKit/NOTES.md](Packages/AlexaKit/NOTES.md).
 
 ## Development
 
 ```sh
-swift test --package-path Packages/AlexaKit   # unit tests
+xcodebuild test -project AlexaAssist.xcodeproj -scheme AlexaAssist   # or ⌘U in Xcode
 ```
 
 Logs: Console.app, filter on subsystem `dev.alexaassist` (status codes and endpoint names only, never tokens).

@@ -3,7 +3,7 @@ import OSLog
 
 /// Talks to the Alexa web API (alexa.<domain>) with the user's own session. All requests go through this
 /// actor; concurrent callers share one in-flight cookie refresh.
-public actor CloudBackend: AlexaBackend {
+actor CloudBackend: AlexaBackend {
     private let refreshToken: String
     private let domain: String
     private let customerID: String
@@ -14,7 +14,7 @@ public actor CloudBackend: AlexaBackend {
     private var auth: Task<String?, Error>?  // resolves to the csrf token
     private let log = Logger(subsystem: "dev.alexaassist", category: "network")
 
-    public init(session: AmazonSession) {
+    init(session: AmazonSession) {
         self.init(refreshToken: session.refreshToken, domain: session.domain, customerID: session.customerID)
     }
 
@@ -58,14 +58,14 @@ public actor CloudBackend: AlexaBackend {
 
     // MARK: - AlexaBackend
 
-    public func devices() async throws -> [EchoDevice] {
+    func devices() async throws -> [EchoDevice] {
         let dto: DevicesDTO = try decode(await call("GET", "/api/devices-v2/device?cached=false"))
         let echos = (dto.devices ?? []).compactMap(\.echoDevice)
         if echos.isEmpty { throw AlexaError.noEchoDevices }
         return echos
     }
 
-    public func send(command: String, to device: EchoDevice) async throws {
+    func send(command: String, to device: EchoDevice) async throws {
         guard device.isOnline else { throw AlexaError.deviceOffline(device.name) }
         let sequence: [String: Any] = [
             "@type": "com.amazon.alexa.behaviors.model.Sequence",
@@ -92,7 +92,7 @@ public actor CloudBackend: AlexaBackend {
 
     /// alexa-remote2's createNotificationObject + createNotification: the reminder text and time go in
     /// directly, so Alexa never has to ask "when should I remind you?".
-    public func createReminder(_ text: String, at date: Date, on device: EchoDevice) async throws {
+    func createReminder(_ text: String, at date: Date, on device: EchoDevice) async throws {
         guard device.isOnline else { throw AlexaError.deviceOffline(device.name) }
         let body = try JSONSerialization.data(withJSONObject: Self.reminderPayload(text, at: date, on: device, now: .now))
         _ = try await call("PUT", "/api/notifications/null", body: body)
@@ -125,13 +125,13 @@ public actor CloudBackend: AlexaBackend {
         ]
     }
 
-    public func upcomingAlerts() async throws -> [Alert] {
+    func upcomingAlerts() async throws -> [Alert] {
         let dto: NotificationsDTO = try decode(await call("GET", "/api/notifications"))
         return dto.alerts(now: .now)
     }
 
     /// alexa-remote2's deleteNotification: DELETE with the notification's own JSON as the body.
-    public func cancel(_ alert: Alert) async throws {
+    func cancel(_ alert: Alert) async throws {
         let json = try JSONSerialization.jsonObject(with: await call("GET", "/api/notifications"))
         guard let list = dig(json, "notifications") as? [[String: Any]],
               let item = list.first(where: { $0["id"] as? String == alert.id }) else { return }  // already gone

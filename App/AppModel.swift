@@ -1,4 +1,3 @@
-import AlexaKit
 import Foundation
 import Observation
 
@@ -27,7 +26,7 @@ final class AppModel {
     }
     private(set) var isSignedIn = false
     private(set) var devices: [EchoDevice] = []
-    private(set) var alerts: [AlexaKit.Alert] = []
+    private(set) var alerts: [Alert] = []
     var banner: Banner?
 
     private var backend: (any AlexaBackend)?
@@ -35,7 +34,7 @@ final class AppModel {
     private var lastAction: (action: Action, duration: TimeInterval?)?
 
     var selectedDevice: EchoDevice? { devices.first { $0.id == selectedDeviceID } ?? devices.first }
-    var nextTimer: AlexaKit.Alert? { alerts.first { $0.kind == .timer && ($0.fireDate ?? .distantPast) > .now } }
+    var nextTimer: Alert? { alerts.first { $0.kind == .timer && ($0.fireDate ?? .distantPast) > .now } }
 
     init() {
         if let session = CredentialStore.load() {
@@ -162,7 +161,7 @@ final class AppModel {
         await run(lastAction.action, duration: lastAction.duration)
     }
 
-    func cancel(_ alert: AlexaKit.Alert) async {
+    func cancel(_ alert: Alert) async {
         guard let backend else { return }
         do {
             try await backend.cancel(alert)

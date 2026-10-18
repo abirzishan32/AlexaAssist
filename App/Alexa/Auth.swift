@@ -15,22 +15,22 @@ enum Amazon {
 }
 
 /// Everything needed to talk to Amazon again later; cookies are re-minted from the refresh token.
-public struct AmazonSession: Codable, Sendable {
-    public let refreshToken: String
-    public let domain: String      // "amazon.com", "amazon.de", …, detected after sign-in
-    public let customerID: String
+struct AmazonSession: Codable, Sendable {
+    let refreshToken: String
+    let domain: String      // "amazon.com", "amazon.de", …, detected after sign-in
+    let customerID: String
 }
 
 /// One sign-in attempt: Amazon's OAuth page for the Alexa iOS app, with PKCE, registering this Mac as an app device.
-public struct SignInRequest: Sendable {
-    public let url: URL
+struct SignInRequest: Sendable {
+    let url: URL
     /// Set these on .amazon.com in the web view before loading `url` (they keep Amazon from showing a captcha in most cases).
-    public let cookies: [String: String]
+    let cookies: [String: String]
     let serial: String
     let verifier: String
     var clientID: String { Data("\(serial)#\(Amazon.deviceType)".utf8).hex }
 
-    public init() {
+    init() {
         let serial = UUID().uuidString.replacingOccurrences(of: "-", with: "").uppercased()
         let verifier = Data((0..<32).map { _ in UInt8.random(in: 0...255) }).base64URL
         let mapMD = #"{"device_user_dictionary":[],"device_registration_data":{"software_version":"\#(Amazon.softwareVersion)"},"app_identifier":{"app_version":"\#(Amazon.appVersion)","bundle_id":"com.amazon.echo"}}"#
@@ -65,18 +65,18 @@ public struct SignInRequest: Sendable {
     }
 
     /// Amazon redirects to /ap/maplanding with the code once sign-in (including the one-time code) succeeds.
-    public func authorizationCode(from url: URL) -> String? {
+    func authorizationCode(from url: URL) -> String? {
         guard url.path.hasSuffix("/ap/maplanding") else { return nil }
         return URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?.first { $0.name == "openid.oa2.authorization_code" }?.value
     }
 }
 
-public enum AuthService {
+enum AuthService {
     private static let log = Logger(subsystem: "dev.alexaassist", category: "auth")
 
     /// Authorization code → registered device → detected Amazon site → account customer ID.
-    public static func signIn(code: String, request: SignInRequest) async throws -> AmazonSession {
+    static func signIn(code: String, request: SignInRequest) async throws -> AmazonSession {
         let (refreshToken, homeRegion) = try await register(code: code, request: request)
         let domain = homeRegion == "FE"
             ? "amazon.co.jp"
@@ -125,14 +125,14 @@ public enum AuthService {
 }
 
 /// The session lives in one Keychain generic-password item.
-public enum CredentialStore {
+enum CredentialStore {
     private static var query: [CFString: Any] { [
         kSecClass: kSecClassGenericPassword,
         kSecAttrService: "dev.alexaassist.amazon",
         kSecAttrAccount: "session",
     ] }
 
-    public static func save(_ session: AmazonSession) throws {
+    static func save(_ session: AmazonSession) throws {
         delete()
         var item = query
         item[kSecValueData] = try JSONEncoder().encode(session)
@@ -141,7 +141,7 @@ public enum CredentialStore {
         guard status == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
     }
 
-    public static func load() -> AmazonSession? {
+    static func load() -> AmazonSession? {
         var q = query
         q[kSecReturnData] = true
         var out: CFTypeRef?
@@ -149,7 +149,7 @@ public enum CredentialStore {
         return try? JSONDecoder().decode(AmazonSession.self, from: data)
     }
 
-    public static func delete() {
+    static func delete() {
         SecItemDelete(query as CFDictionary)
     }
 }

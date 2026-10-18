@@ -1,24 +1,24 @@
 import Foundation
 
-public enum AlertKind: String, Codable, Sendable { case alarm, timer, reminder }
+enum AlertKind: String, Codable, Sendable { case alarm, timer, reminder }
 
-public struct EchoDevice: Identifiable, Hashable, Codable, Sendable {
-    public let id: String          // serial number
-    public let name: String        // "Bedroom Echo Dot"
-    public let deviceType: String
-    public let isOnline: Bool
+struct EchoDevice: Identifiable, Hashable, Codable, Sendable {
+    let id: String          // serial number
+    let name: String        // "Bedroom Echo Dot"
+    let deviceType: String
+    let isOnline: Bool
 }
 
-public struct Alert: Identifiable, Hashable, Codable, Sendable {
-    public let id: String
-    public let kind: AlertKind
-    public let deviceID: String
-    public let fireDate: Date?
-    public let label: String?
-    public let repeats: Bool
+struct Alert: Identifiable, Hashable, Codable, Sendable {
+    let id: String
+    let kind: AlertKind
+    let deviceID: String
+    let fireDate: Date?
+    let label: String?
+    let repeats: Bool
 }
 
-public protocol AlexaBackend: Sendable {
+protocol AlexaBackend: Sendable {
     func devices() async throws -> [EchoDevice]
     func send(command: String, to device: EchoDevice) async throws
     func createReminder(_ text: String, at date: Date, on device: EchoDevice) async throws
@@ -26,7 +26,7 @@ public protocol AlexaBackend: Sendable {
     func cancel(_ alert: Alert) async throws
 }
 
-public enum AlexaError: Error, CustomStringConvertible {
+enum AlexaError: Error, CustomStringConvertible {
     case sessionExpired
     case noEchoDevices
     case deviceOffline(String)
@@ -34,7 +34,7 @@ public enum AlexaError: Error, CustomStringConvertible {
     case rateLimited
     case network(Error)
 
-    public var description: String {
+    var description: String {
         switch self {
         case .sessionExpired: "Amazon session expired"
         case .noEchoDevices: "No Echo with timers/alarms found on this Amazon account"
