@@ -244,7 +244,7 @@ extension AlertKind {
 
 private struct TimerControls: View {
     @Environment(AppModel.self) private var model
-    @State private var minutes = 25
+    @State private var minutes = 5
     @State private var label = ""
 
     var body: some View {
