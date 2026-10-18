@@ -3,7 +3,7 @@ import OSLog
 
 /// Talks to the Alexa web API (alexa.<domain>) with the user's own session. All requests go through this
 /// actor; concurrent callers share one in-flight cookie refresh.
-actor CloudBackend: AlexaBackend {
+actor CloudBackend {
     private let refreshToken: String
     private let domain: String
     private let customerID: String
@@ -56,7 +56,7 @@ actor CloudBackend: AlexaBackend {
         return id
     }
 
-    // MARK: - AlexaBackend
+    // MARK: - Alexa API
 
     func devices() async throws -> [EchoDevice] {
         let dto: DevicesDTO = try decode(await call("GET", "/api/devices-v2/device?cached=false"))

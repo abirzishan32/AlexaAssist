@@ -276,7 +276,7 @@ private struct TimerControls: View {
     }
 
     private func start(_ m: Int, _ label: String) {
-        Task { await model.run(.say(CommandBuilder.timer(minutes: m, label: label)), duration: TimeInterval(m * 60)) }
+        Task { await model.run(.timer(minutes: m, label: label)) }
     }
 }
 
@@ -348,7 +348,7 @@ private struct ScheduleControls: View {
         skipPastToday()
         guard let date = date(onDay: day), date > .now, kind == .alarm || !trimmed.isEmpty else { return }
         Task {
-            await model.run(kind == .alarm ? .say(CommandBuilder.alarm(at: date)) : .reminder(trimmed, date))
+            await model.run(kind == .alarm ? .alarm(date) : .reminder(trimmed, date))
             if model.phase == .success { text = "" }
         }
     }

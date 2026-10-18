@@ -29,9 +29,9 @@ final class AppModel {
     private(set) var alerts: [Alert] = []
     var banner: Banner?
 
-    private var backend: (any AlexaBackend)?
+    private var backend: CloudBackend?
     private var pollTask: Task<Void, Never>?
-    private var lastAction: (action: Action, duration: TimeInterval?)?
+    private var lastAction: Action?
 
     var selectedDevice: EchoDevice? { devices.first { $0.id == selectedDeviceID } ?? devices.first }
     var nextTimer: Alert? { alerts.first { $0.kind == .timer && ($0.fireDate ?? .distantPast) > .now } }
@@ -59,10 +59,13 @@ final class AppModel {
         isSignedIn = false
         devices = []
         alerts = []
+        timerDurations = [:]
+        lastAction = nil
+        phase = .idle
         banner = nil
     }
 
-    private func connect(_ backend: any AlexaBackend) {
+    private func connect(_ backend: CloudBackend) {
         self.backend = backend
         isSignedIn = true
         poll()
@@ -90,6 +93,7 @@ final class AppModel {
         do {
             if withDevices { devices = try await backend.devices() }
             alerts = try await backend.upcomingAlerts()
+            timerDurations = timerDurations.filter { id, _ in alerts.contains { $0.id == id } }
             if banner?.isError == true, banner?.canRetry == false, banner?.needsSignIn == false { banner = nil }
             return true
         } catch {
@@ -99,29 +103,37 @@ final class AppModel {
     }
 
     enum Action {
-        case say(String)                 // spoken-style command (timers, alarms)
-        case reminder(String, Date)      // created directly, so text and time can't get lost
+        case timer(minutes: Int, label: String)
+        case alarm(Date)
+        case reminder(String, Date)  // created directly, so text and time can't get lost
 
         var kind: AlertKind {
             switch self {
-            case .say(let text): text.contains("timer") ? .timer : .alarm
+            case .timer: .timer
+            case .alarm: .alarm
             case .reminder: .reminder
             }
         }
     }
 
     /// Sends the action, then waits for the new item to show up in Alexa's list before claiming success.
-    func run(_ action: Action, duration: TimeInterval? = nil) async {
+    func run(_ action: Action) async {
         guard let backend, let device = selectedDevice, phase != .sending else { return }
         let kind = action.kind
-        lastAction = (action, duration)
+        lastAction = action
         phase = .sending
         banner = Banner(text: "Sending to \(device.name)…", isError: false)
         do {
             let before = Set(alerts.map(\.id))
+            var duration: TimeInterval?
             switch action {
-            case .say(let command): try await backend.send(command: command, to: device)
-            case .reminder(let text, let date): try await backend.createReminder(text, at: date, on: device)
+            case .timer(let minutes, let label):
+                duration = TimeInterval(minutes * 60)
+                try await backend.send(command: CommandBuilder.timer(minutes: minutes, label: label), to: device)
+            case .alarm(let date):
+                try await backend.send(command: CommandBuilder.alarm(at: date), to: device)
+            case .reminder(let text, let date):
+                try await backend.createReminder(text, at: date, on: device)
             }
             for wait in [2, 3] {
                 try await Task.sleep(for: .seconds(wait))
@@ -158,7 +170,7 @@ final class AppModel {
 
     func retry() async {
         guard let lastAction else { return }
-        await run(lastAction.action, duration: lastAction.duration)
+        await run(lastAction)
     }
 
     func cancel(_ alert: Alert) async {
@@ -172,20 +184,12 @@ final class AppModel {
     }
 
     private func show(_ error: Error) {
-        switch error as? AlexaError {
-        case .sessionExpired?:
+        let error = error as? AlexaError ?? .endpointChanged(error.localizedDescription)
+        if case .sessionExpired = error {
             signOut()
-            banner = Banner(text: "Session expired", needsSignIn: true)
-        case .noEchoDevices?:
-            banner = Banner(text: "No Echo with alarms found on this Amazon account")
-        case .deviceOffline(let name)?:
-            banner = Banner(text: "\(name) is offline")
-        case .endpointChanged?:
-            banner = Banner(text: "\(error)")
-        case .rateLimited?:
-            banner = Banner(text: "Amazon is rate limiting. Retrying shortly.")
-        case .network?, nil:
-            banner = Banner(text: "No connection. Retrying automatically.")
+            banner = Banner(text: error.description, needsSignIn: true)
+        } else {
+            banner = Banner(text: error.description)
         }
     }
 }
