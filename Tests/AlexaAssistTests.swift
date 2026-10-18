@@ -22,6 +22,8 @@ private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
     #expect(CommandBuilder.alarm(at: at(18, 0, 5), now: now, calendar: utc) == "set an alarm for 12:05 am")
     #expect(CommandBuilder.alarm(at: at(21, 18), now: now, calendar: utc) == "set an alarm for 6 pm on wednesday")
     #expect(CommandBuilder.alarm(at: at(30, 12), now: now, calendar: utc) == "set an alarm for 12 pm on october 30")
+    #expect(CommandBuilder.alarm(at: at(19, 6, 45), repeating: .weekdays, now: now, calendar: utc) == "set an alarm for 6:45 am every weekday")
+    #expect(CommandBuilder.alarm(at: at(18, 7), repeating: .daily, now: now, calendar: utc) == "set an alarm for 7 am every day")
 }
 
 @Test func reminderPayload() throws {

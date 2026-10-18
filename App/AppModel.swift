@@ -14,7 +14,6 @@ final class AppModel {
 
     private(set) var accountDomain: String?
     private(set) var phase = Phase.idle
-    /// Total length of timers started here, so the UI can draw progress (Alexa only reports the end time).
     private(set) var timerDurations: [String: TimeInterval] = [:]
     @ObservationIgnored var openSignIn: () -> Void = {}
     @ObservationIgnored var openSettings: () -> Void = {}
@@ -36,11 +35,11 @@ final class AppModel {
     var selectedDevice: EchoDevice? { devices.first { $0.id == selectedDeviceID } ?? devices.first }
     var nextTimer: Alert? { alerts.first { $0.kind == .timer && ($0.fireDate ?? .distantPast) > .now } }
 
-    init() {
-        if let session = CredentialStore.load() {
-            accountDomain = session.domain
-            connect(CloudBackend(session: session))
-        }
+    
+    func restoreSession() async {
+        guard let session = await Task.detached(operation: { CredentialStore.load() }).value else { return }
+        accountDomain = session.domain
+        connect(CloudBackend(session: session))
     }
 
     func signedIn(_ session: AmazonSession) {
@@ -71,8 +70,7 @@ final class AppModel {
         poll()
     }
 
-    /// Refreshes now (devices too), then every 60 s while the panel is open / 5 min otherwise.
-    /// Backs off on errors, and wakes when the next timer fires so the menu bar countdown never sits at 0:00.
+    
     private func poll() {
         pollTask?.cancel()
         pollTask = Task {
@@ -104,8 +102,8 @@ final class AppModel {
 
     enum Action {
         case timer(minutes: Int, label: String)
-        case alarm(Date)
-        case reminder(String, Date)  // created directly, so text and time can't get lost
+        case alarm(Date, AlarmRepeat)
+        case reminder(String, Date)
 
         var kind: AlertKind {
             switch self {
@@ -116,7 +114,6 @@ final class AppModel {
         }
     }
 
-    /// Sends the action, then waits for the new item to show up in Alexa's list before claiming success.
     func run(_ action: Action) async {
         guard let backend, let device = selectedDevice, phase != .sending else { return }
         let kind = action.kind
@@ -130,8 +127,8 @@ final class AppModel {
             case .timer(let minutes, let label):
                 duration = TimeInterval(minutes * 60)
                 try await backend.send(command: CommandBuilder.timer(minutes: minutes, label: label), to: device)
-            case .alarm(let date):
-                try await backend.send(command: CommandBuilder.alarm(at: date), to: device)
+            case .alarm(let date, let repeating):
+                try await backend.send(command: CommandBuilder.alarm(at: date, repeating: repeating), to: device)
             case .reminder(let text, let date):
                 try await backend.createReminder(text, at: date, on: device)
             }
@@ -157,7 +154,7 @@ final class AppModel {
         }
     }
 
-    /// Success messages fade after a few seconds; errors stay until something succeeds.
+    
     private func finish(_ phase: Phase, _ banner: Banner?) {
         self.phase = phase
         self.banner = banner
@@ -171,6 +168,18 @@ final class AppModel {
     func retry() async {
         guard let lastAction else { return }
         await run(lastAction)
+    }
+
+    
+    func stopRinging() async {
+        guard let backend, let device = selectedDevice, phase != .sending else { return }
+        do {
+            try await backend.stop(device)
+            finish(.success, Banner(text: "Stopped \(device.name)", isError: false))
+        } catch {
+            show(error)
+            finish(.failure, banner)
+        }
     }
 
     func cancel(_ alert: Alert) async {

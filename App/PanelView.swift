@@ -136,6 +136,21 @@ private struct TopBar: View {
                 Text("AlexaAssist").font(.system(size: 13, weight: .semibold))
             }
             Spacer()
+            if model.isSignedIn {
+                Button {
+                    Task { await model.stopRinging() }
+                } label: {
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(.black.opacity(0.35)))
+                        .overlay(Circle().strokeBorder(Theme.stroke))
+                }
+                .buttonStyle(PressStyle())
+                .disabled(model.selectedDevice == nil)
+                .help("Stop a ringing alarm or timer on \(model.selectedDevice?.name ?? "your Echo")")
+                .accessibilityLabel("Stop ringing")
+            }
             Menu {
                 Button("Settings…") { model.openSettings() }
                 if model.isSignedIn { Button("Sign Out") { model.signOut() } }
@@ -200,30 +215,10 @@ private struct StatusLine: View {
 
 private struct TabSwitcher: View {
     @Binding var tab: AlertKind
-    @Namespace private var ns
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach([AlertKind.timer, .alarm, .reminder], id: \.self) { kind in
-                Button {
-                    withAnimation(.spring(duration: 0.3)) { tab = kind }
-                } label: {
-                    Label(kind.rawValue.capitalized, systemImage: kind.icon)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(tab == kind ? .white : .secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
-                        .background {
-                            if tab == kind { Capsule().fill(Theme.ring).matchedGeometryEffect(id: "tab", in: ns) }
-                        }
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(3)
-        .background(Capsule().fill(Theme.card))
-        .overlay(Capsule().strokeBorder(Theme.stroke))
+        CapsulePicker(options: [AlertKind.timer, .alarm, .reminder].map { ($0, $0.rawValue.capitalized, $0.icon) },
+                      selection: $tab)
     }
 }
 
@@ -289,6 +284,7 @@ private struct ScheduleControls: View {
     @State private var minute = 0
     @State private var pm: Int
     @State private var day = 0  // days from today
+    @State private var repeating = AlarmRepeat.once
     @State private var text = ""
     @State private var now = Date.now
 
@@ -315,8 +311,13 @@ private struct ScheduleControls: View {
                 CardField(icon: "text.bubble", placeholder: "Remind me to… e.g. call mom", text: $text, onSubmit: submit)
             }
             TimeWheel(hour: $hour, minute: $minute, pm: $pm)
-            DayStrip(selection: $day) { $0 == 0 && passedToday }
-            if passedToday {
+            if kind == .alarm {
+                CapsulePicker(options: AlarmRepeat.allCases.map { ($0, $0.rawValue, nil) }, selection: $repeating)
+            }
+            if repeating == .once {
+                DayStrip(selection: $day) { $0 == 0 && passedToday }
+            }
+            if repeating == .once && passedToday {
                 Text("That time has passed today, so pick another day.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -348,7 +349,7 @@ private struct ScheduleControls: View {
         skipPastToday()
         guard let date = date(onDay: day), date > .now, kind == .alarm || !trimmed.isEmpty else { return }
         Task {
-            await model.run(kind == .alarm ? .alarm(date) : .reminder(trimmed, date))
+            await model.run(kind == .alarm ? .alarm(date, repeating) : .reminder(trimmed, date))
             if model.phase == .success { text = "" }
         }
     }

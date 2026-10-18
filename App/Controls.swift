@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Big glowing capsule button.
+
 struct GlowButton: View {
     let title: String
     let icon: String
@@ -32,7 +32,7 @@ struct PressStyle: ButtonStyle {
     }
 }
 
-/// Rounded text field on a dark card.
+
 struct CardField: View {
     let icon: String
     let placeholder: String
@@ -54,7 +54,42 @@ struct CardField: View {
     }
 }
 
-/// The next seven days as chips. Disabled days can't be picked (e.g. today once the time has passed).
+
+struct CapsulePicker<Value: Hashable>: View {
+    let options: [(value: Value, title: String, icon: String?)]
+    @Binding var selection: Value
+    @Namespace private var ns
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(options, id: \.value) { option in
+                let selected = selection == option.value
+                Button {
+                    withAnimation(.spring(duration: 0.3)) { selection = option.value }
+                } label: {
+                    Group {
+                        if let icon = option.icon { Label(option.title, systemImage: icon) } else { Text(option.title) }
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(selected ? .white : .secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background {
+                        if selected { Capsule().fill(Theme.ring).matchedGeometryEffect(id: "pick", in: ns) }
+                    }
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .background(Capsule().fill(Theme.card))
+        .overlay(Capsule().strokeBorder(Theme.stroke))
+    }
+}
+
+
 struct DayStrip: View {
     @Binding var selection: Int  // days from today, 0...6
     var isDisabled: (Int) -> Bool = { _ in false }
@@ -89,7 +124,7 @@ struct DayStrip: View {
     }
 }
 
-/// Drag around the ring to pick 1 to 120 minutes.
+
 struct TimerDial: View {
     @Binding var minutes: Int
     static let maxMinutes = 120
@@ -155,7 +190,7 @@ struct TimerDial: View {
     }
 }
 
-/// One-click preset: a small ring showing the share of an hour.
+
 struct PresetButton: View {
     let minutes: Int
     let action: () -> Void

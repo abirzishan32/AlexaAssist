@@ -66,19 +66,34 @@ actor CloudBackend {
     }
 
     func send(command: String, to device: EchoDevice) async throws {
+        try await runOperation("Alexa.TextCommand", on: device, extra: [
+            "skillId": "amzn1.ask.1p.tellalexa", "text": command.lowercased(),
+        ])
+    }
+
+    /// Silences whatever is ringing or playing on the device (a sounding alarm or timer).
+    func stop(_ device: EchoDevice) async throws {
+        try await runOperation("Alexa.DeviceControls.Stop", on: device, extra: [
+            "skillId": "amzn1.ask.1p.alexadevicecontrols",
+            "devices": [["deviceSerialNumber": device.id, "deviceType": device.deviceType]],
+        ])
+    }
+
+    /// One behaviors/preview call with a single operation node (aioamazondevices' `_build_operation_node`).
+    private func runOperation(_ type: String, on device: EchoDevice, extra: [String: Any]) async throws {
         guard device.isOnline else { throw AlexaError.deviceOffline(device.name) }
+        let payload: [String: Any] = [
+            "deviceType": device.deviceType, "deviceSerialNumber": device.id,
+            "locale": locale, "customerId": customerID,
+        ].merging(extra) { $1 }
         let sequence: [String: Any] = [
             "@type": "com.amazon.alexa.behaviors.model.Sequence",
             "startNode": [
                 "@type": "com.amazon.alexa.behaviors.model.SerialNode",
                 "nodesToExecute": [[
                     "@type": "com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode",
-                    "type": "Alexa.TextCommand",
-                    "operationPayload": [
-                        "deviceType": device.deviceType, "deviceSerialNumber": device.id,
-                        "locale": locale, "customerId": customerID,
-                        "skillId": "amzn1.ask.1p.tellalexa", "text": command.lowercased(),
-                    ],
+                    "type": type,
+                    "operationPayload": payload,
                 ]],
             ],
         ]

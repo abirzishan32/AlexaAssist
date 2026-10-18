@@ -6,14 +6,11 @@ struct AlexaAssistApp: App {
     @NSApplicationDelegateAdaptor(AppController.self) private var controller
 
     var body: some Scene {
-        // Everything lives in the status item; this only satisfies `App`.
         Settings { EmptyView() }
     }
 }
 
-/// Owns the status item, its popover, and the sign-in / settings windows.
-/// AppKit instead of `MenuBarExtra`: a live countdown in a MenuBarExtra label re-renders forever and
-/// starves the main thread, and MenuBarExtra has no right-click menu.
+
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private(set) lazy var model = AppModel()
@@ -22,6 +19,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var signInWindow: NSWindow?
     private var settingsWindow: NSWindow?
     private var ticker: Timer?
+    private static let icon = NSImage(systemSymbolName: "homepodmini.fill", accessibilityDescription: "AlexaAssist")
+    private static let warningIcon = NSImage(systemSymbolName: "exclamationmark.triangle.fill",
+                                             accessibilityDescription: "AlexaAssist: sign in again")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hosting unit tests: no menu bar UI and no Keychain read.
@@ -31,8 +31,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         let button = statusItem.button!
-        button.image = NSImage(systemSymbolName: "homepodmini.fill", accessibilityDescription: "AlexaAssist")
-            ?? NSImage(systemSymbolName: "timer", accessibilityDescription: "AlexaAssist")
+        button.image = Self.icon
         button.imagePosition = .imageLeading
         button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         button.target = self
@@ -49,7 +48,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.updateTitle() }
         }
-        if !model.isSignedIn { togglePopover() }
+        Task {
+            await model.restoreSession()
+            if !model.isSignedIn { togglePopover() }
+        }
     }
 
     @objc private func statusItemClicked() {
@@ -73,6 +75,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(.separator())
         if model.isSignedIn {
+            menu.addItem(withTitle: "Stop Ringing", action: #selector(stopRinging), keyEquivalent: "").target = self
             menu.addItem(withTitle: "Sign Out", action: #selector(signOut), keyEquivalent: "").target = self
         } else {
             menu.addItem(withTitle: "Sign In…", action: #selector(openSignIn), keyEquivalent: "").target = self
@@ -88,6 +91,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     @objc private func openSettings() { showSettings() }
     @objc private func openSignIn() { showSignIn() }
     @objc private func signOut() { model.signOut() }
+    @objc private func stopRinging() { Task { await model.stopRinging() } }
 
     private func updateTitle() {
         guard let button = statusItem.button else { return }
@@ -99,6 +103,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 : String(format: " %d:%02d", left / 60, left % 60)
         }
         if button.title != title { button.title = title }
+        // A warning icon is the only cue when the session expires while the panel is closed.
+        let image = model.banner?.needsSignIn == true ? Self.warningIcon : Self.icon
+        if button.image !== image { button.image = image }
     }
 
     func popoverDidShow(_ notification: Notification) { model.isPanelOpen = true }
